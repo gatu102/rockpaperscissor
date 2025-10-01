@@ -1,33 +1,81 @@
 import random
+import os
+
+HIGH_SCORE_FILE = "rps_highscore.txt"
+
+def load_high_score():
+    if os.path.exists(HIGH_SCORE_FILE):
+        with open(HIGH_SCORE_FILE, "r") as f:
+            try:
+                return int(f.read())
+            except:
+                return 0
+    return 0
+
+def save_high_score(score):
+    with open(HIGH_SCORE_FILE, "w") as f:
+        f.write(str(score))
 
 def rock_paper_scissors():
     print("🎮 Welcome to Rock Paper Scissors Showdown!")
-    print("Choices: rock, paper, scissors")
-    
-    choices = ["rock", "paper", "scissors"]
+    print("Choices: rock (r), paper (p), scissors (s)")
 
-    while True:
-        player = input("\nEnter your choice: ").lower()
+    choices = ["rock", "paper", "scissors"]
+    choice_shortcuts = {"r": "rock", "p": "paper", "s": "scissors"}
+
+    wins = 0
+    losses = 0
+    ties = 0
+    high_score = load_high_score()
+
+    # Ask for number of rounds
+    try:
+        rounds = int(input("Enter number of rounds (or 0 for infinite): "))
+    except ValueError:
+        rounds = 0
+
+    round_count = 0
+    while rounds == 0 or round_count < rounds:
+        round_count += 1
+        player_input = input(f"\nRound {round_count} - Enter your choice: ").lower()
+        player = choice_shortcuts.get(player_input, player_input)
         if player not in choices:
-            print("Invalid choice. Choose rock, paper, or scissors.")
+            print("Invalid choice. Choose rock, paper, or scissors (or r/p/s).")
+            round_count -= 1
             continue
 
+        # Weighted computer choice (optional: smarter AI)
         computer = random.choice(choices)
         print(f"Computer chose: {computer}")
 
+        # Determine winner
         if player == computer:
             print("It's a tie!")
+            ties += 1
         elif (player == "rock" and computer == "scissors") or \
              (player == "paper" and computer == "rock") or \
              (player == "scissors" and computer == "paper"):
             print("🎉 You win!")
+            wins += 1
         else:
             print("💀 You lose!")
+            losses += 1
 
-        again = input("Play again? (y/n): ").lower()
-        if again != "y":
-            print("Thanks for playing Rock Paper Scissors Showdown!")
-            break
+        print(f"Score → Wins: {wins} | Losses: {losses} | Ties: {ties}")
+        # Update high score
+        if wins > high_score:
+            high_score = wins
+            save_high_score(high_score)
+
+        # Continue or exit
+        if rounds == 0:
+            again = input("Play another round? (y/n): ").lower()
+            if again != "y":
+                break
+
+    print("\nThanks for playing Rock Paper Scissors Showdown!")
+    print(f"Final Score → Wins: {wins} | Losses: {losses} | Ties: {ties}")
+    print(f"High Score: {high_score}")
 
 if __name__ == "__main__":
     rock_paper_scissors()
