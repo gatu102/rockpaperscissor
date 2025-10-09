@@ -1,167 +1,65 @@
 import tkinter as tk
 from tkinter import simpledialog, messagebox
-import random
-import os
+import random, os
 from collections import Counter
 
 LEADERBOARD_FILE = "rps_leaderboard.txt"
 
-# -------------------- Leaderboard Functions -------------------- #
+# ------------------ Leaderboard ------------------
 def load_leaderboard():
-    """Load top 5 leaderboard entries from file."""
+    if not os.path.exists(LEADERBOARD_FILE):
+        return []
     leaderboard = []
-    if os.path.exists(LEADERBOARD_FILE):
-        with open(LEADERBOARD_FILE, "r") as f:
-            for line in f:
-                try:
-                    name, score = line.strip().split(",")
-                    leaderboard.append((name, int(score)))
-                except ValueError:
-                    continue
-    return sorted(leaderboard, key=lambda x: x[1], reverse=True)[:5]
+    with open(LEADERBOARD_FILE) as f:
+        for line in f:
+            try:
+                name, score = line.strip().split(",")
+                leaderboard.append((name, int(score)))
+            except:
+                continue
+    return sorted(leaderboard, key=lambda x: x[1], reverse=True)
 
 def save_leaderboard(name, score):
-    """Save player score to leaderboard and keep top 5."""
     leaderboard = load_leaderboard()
     leaderboard.append((name, score))
     leaderboard.sort(key=lambda x: x[1], reverse=True)
     with open(LEADERBOARD_FILE, "w") as f:
-        for entry in leaderboard[:5]:
-            f.write(f"{entry[0]},{entry[1]}\n")
+        for n, s in leaderboard[:5]:  # keep top 5
+            f.write(f"{n},{s}\n")
 
-# -------------------- RPS Game Class -------------------- #
+# ------------------ Game Class ------------------
 class RPSGame:
     def __init__(self, root):
         self.root = root
         self.root.title("🎮 Rock Paper Scissors Showdown")
         self.choices = ["Rock", "Paper", "Scissors"]
-        self.emojis = {"Rock": "🪨", "Paper": "📄", "Scissors": "✂️"}
-        self.wins = self.losses = self.ties = 0
-        self.player_history = []
+        self.emojis = {"Rock":"🪨","Paper":"📄","Scissors":"✂️"}
         self.ai_level = tk.StringVar(value="Easy")
-        self.tournament_mode = False
-        self.rounds = self.current_round = 0
-        self.player_name = ""
 
+        self.reset_game()
         self.create_widgets()
-        self.update_leaderboard()
+        self.show_leaderboard()
 
-    # -------------------- UI Setup -------------------- #
+    # ------------------ UI ------------------
     def create_widgets(self):
-        # Tournament Button
         tk.Button(self.root, text="Start Tournament", command=self.start_tournament).pack(pady=5)
-
-        # Difficulty Selection
         tk.Label(self.root, text="Select AI Difficulty:", font=("Arial", 12)).pack(pady=5)
         tk.OptionMenu(self.root, self.ai_level, "Easy", "Medium", "Hard").pack(pady=5)
 
-        # Info Label
         self.label_info = tk.Label(self.root, text="Choose your move!", font=("Arial", 14))
         self.label_info.pack(pady=10)
 
-        # Choice Buttons
-        frame = tk.Frame(self.root)
-        frame.pack(pady=5)
+        frame = tk.Frame(self.root); frame.pack(pady=5)
         for choice in self.choices:
-            tk.Button(frame, text=f"{self.emojis[choice]} {choice}", width=12, height=2, font=("Arial", 12),
-                      command=lambda c=choice: self.play_round(c)).pack(side="left", padx=5)
+            tk.Button(frame, text=f"{self.emojis[choice]} {choice}", width=10, height=2,
+                      font=("Arial",12), command=lambda c=choice: self.play(c)).pack(side="left", padx=5)
 
-        # Result and Score Labels
-        self.label_result = tk.Label(self.root, text="", font=("Arial", 12))
-        self.label_result.pack(pady=10)
-        self.label_score = tk.Label(self.root, text=self.get_score_text(), font=("Arial", 12))
-        self.label_score.pack(pady=5)
-
-        # Leaderboard Label
-        self.label_leaderboard = tk.Label(self.root, text="", font=("Arial", 12))
-        self.label_leaderboard.pack(pady=10)
-
-        # Reset Button
+        self.label_result = tk.Label(self.root, text="", font=("Arial", 12)); self.label_result.pack(pady=10)
+        self.label_score = tk.Label(self.root, text=self.get_score_text(), font=("Arial", 12)); self.label_score.pack(pady=10)
+        self.label_leaderboard = tk.Label(self.root, text="", font=("Arial", 12)); self.label_leaderboard.pack(pady=10)
         tk.Button(self.root, text="Reset Game", command=self.reset_game).pack(pady=10)
 
-    # -------------------- Game Logic -------------------- #
-    def get_score_text(self):
-        rounds_text = f"{self.current_round}/{self.rounds}" if self.tournament_mode else "-"
-        return f"Wins: {self.wins} | Losses: {self.losses} | Ties: {self.ties} | Round: {rounds_text}"
-
-    def computer_choice(self):
-        """Generate AI choice based on difficulty level."""
-        level = self.ai_level.get()
-        if level == "Easy":
-            return random.choice(self.choices)
-        elif level == "Medium":
-            if not self.player_history or random.random() < 0.5:
-                return random.choice(self.choices)
-            return self.counter_move(self.player_history[-1])
-        elif level == "Hard":
-            if not self.player_history:
-                return random.choice(self.choices)
-            most_common = Counter(self.player_history).most_common(1)[0][0]
-            return self.counter_move(most_common)
-
-    def counter_move(self, move):
-        """Return the winning move against the given move."""
-        counters = {"Rock": "Paper", "Paper": "Scissors", "Scissors": "Rock"}
-        return counters.get(move, random.choice(self.choices))
-
-    def play_round(self, player_choice):
-        """Play a single round."""
-        if self.tournament_mode and self.current_round >= self.rounds:
-            messagebox.showinfo("Tournament Over", "Tournament is finished. Start a new tournament.")
-            return
-
-        self.player_history.append(player_choice)
-        computer_choice = self.computer_choice()
-        result_text = f"You chose {self.emojis[player_choice]} {player_choice}.\nComputer chose {self.emojis[computer_choice]} {computer_choice}.\n"
-
-        # Determine outcome
-        if player_choice == computer_choice:
-            result_text += "It's a tie!"
-            self.ties += 1
-        elif (player_choice == "Rock" and computer_choice == "Scissors") or \
-             (player_choice == "Paper" and computer_choice == "Rock") or \
-             (player_choice == "Scissors" and computer_choice == "Paper"):
-            result_text += "🎉 You win!"
-            self.wins += 1
-        else:
-            result_text += "💀 You lose!"
-            self.losses += 1
-
-        self.current_round += 1
-        self.label_result.config(text=result_text)
-        self.label_score.config(text=self.get_score_text())
-
-        if self.tournament_mode and self.current_round == self.rounds:
-            self.end_tournament()
-
-    # -------------------- Tournament -------------------- #
-    def start_tournament(self):
-        self.player_name = simpledialog.askstring("Name", "Enter your name for the tournament:") or "Player"
-        try:
-            self.rounds = int(simpledialog.askstring("Rounds", "Enter number of rounds:") or 5)
-        except ValueError:
-            self.rounds = 5
-        self.tournament_mode = True
-        self.current_round = 0
-        self.reset_scores()
-        self.label_result.config(text=f"Tournament started for {self.player_name} - {self.rounds} rounds!")
-        self.label_score.config(text=self.get_score_text())
-
-    def end_tournament(self):
-        messagebox.showinfo("Tournament Finished",
-                            f"Tournament Over!\nWins: {self.wins} | Losses: {self.losses} | Ties: {self.ties}")
-        save_leaderboard(self.player_name, self.wins)
-        self.update_leaderboard()
-
-    # -------------------- Leaderboard -------------------- #
-    def update_leaderboard(self):
-        leaderboard = load_leaderboard()
-        text = "🏆 Leaderboard (Top 5 Wins)\n"
-        for idx, (name, score) in enumerate(leaderboard, start=1):
-            text += f"{idx}. {name} - {score}\n"
-        self.label_leaderboard.config(text=text)
-
-    # -------------------- Reset / Utility -------------------- #
+    # ------------------ Core Logic ------------------
     def reset_scores(self):
         self.wins = self.losses = self.ties = 0
         self.player_history = []
@@ -169,12 +67,75 @@ class RPSGame:
     def reset_game(self):
         self.reset_scores()
         self.current_round = 0
+        self.rounds = 0
         self.tournament_mode = False
+        self.player_name = ""
+        self.label_result = getattr(self, "label_result", tk.Label(self.root))
         self.label_result.config(text="")
+        self.label_score = getattr(self, "label_score", tk.Label(self.root))
         self.label_score.config(text=self.get_score_text())
-        self.update_leaderboard()
+        self.show_leaderboard()
 
-# -------------------- Run Game -------------------- #
+    def get_score_text(self):
+        return f"Wins: {self.wins} | Losses: {self.losses} | Ties: {self.ties} | Round: {self.current_round}/{self.rounds if self.tournament_mode else '-'}"
+
+    def computer_choice(self):
+        level = self.ai_level.get()
+        if level == "Easy" or not self.player_history:
+            return random.choice(self.choices)
+        if level == "Medium":
+            return self.counter_move(self.player_history[-1]) if random.random() > 0.5 else random.choice(self.choices)
+        if level == "Hard":
+            most_common = Counter(self.player_history).most_common(1)[0][0]
+            return self.counter_move(most_common)
+
+    def counter_move(self, move):
+        return {"Rock":"Paper", "Paper":"Scissors", "Scissors":"Rock"}[move]
+
+    def play(self, player_choice):
+        if self.tournament_mode and self.current_round >= self.rounds:
+            return messagebox.showinfo("Tournament Over", "Tournament finished. Start a new tournament.")
+
+        self.player_history.append(player_choice)
+        computer_choice = self.computer_choice()
+        result = ""
+        if player_choice == computer_choice:
+            result = "It's a tie!"; self.ties += 1
+        elif (player_choice, computer_choice) in [("Rock","Scissors"),("Paper","Rock"),("Scissors","Paper")]:
+            result = "🎉 You win!"; self.wins += 1
+        else:
+            result = "💀 You lose!"; self.losses += 1
+
+        self.current_round += 1
+        self.label_result.config(text=f"You chose {self.emojis[player_choice]} {player_choice}.\nComputer chose {self.emojis[computer_choice]} {computer_choice}.\n{result}")
+        self.label_score.config(text=self.get_score_text())
+
+        if self.tournament_mode and self.current_round == self.rounds:
+            self.end_tournament()
+
+    # ------------------ Tournament ------------------
+    def start_tournament(self):
+        self.player_name = simpledialog.askstring("Name", "Enter your name:") or "Player"
+        try: self.rounds = int(simpledialog.askstring("Rounds", "Enter number of rounds:"))
+        except: self.rounds = 5
+        self.tournament_mode = True
+        self.current_round = 0
+        self.reset_scores()
+        self.label_result.config(text=f"Tournament started for {self.player_name} - {self.rounds} rounds!")
+        self.label_score.config(text=self.get_score_text())
+
+    def end_tournament(self):
+        messagebox.showinfo("Tournament Finished", f"Tournament Over!\nWins: {self.wins} | Losses: {self.losses} | Ties: {self.ties}")
+        save_leaderboard(self.player_name, self.wins)
+        self.show_leaderboard()
+
+    # ------------------ Leaderboard ------------------
+    def show_leaderboard(self):
+        leaderboard = load_leaderboard()
+        text = "🏆 Leaderboard (Top 5 Wins)\n" + "\n".join(f"{i+1}. {n} - {s}" for i,(n,s) in enumerate(leaderboard[:5]))
+        self.label_leaderboard.config(text=text)
+
+# ------------------ Run ------------------
 if __name__ == "__main__":
     root = tk.Tk()
     RPSGame(root)
